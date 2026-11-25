@@ -1,0 +1,218 @@
+modules:
+  rovo:agent:
+    - key: chemical-risk-agent
+      # Display name: max 30 characters. Final name chosen by the builder 2026-11-20.
+      name: JESTOX
+      description: >
+        JESTOX, your team's toxicologist. Chemical hazards, PPE, first aid,
+        storage compatibility, properties and Jira task safety checks, all
+        sourced from PubChem, CDC, OSHA and Cornell EHS.
+      # The full agent instructions live in prompts/agent-prompt.txt.
+      prompt: resource:agent-prompts;agent-prompt.txt
+      conversationStarters:
+        - What are the hazards of sodium hypochlorite?
+        - What PPE do I need to handle toluene?
+        - First aid for hydrochloric acid on skin
+        - How should I store acetone?
+        - Can I store bleach next to hydrochloric acid?
+        - Is sodium hydroxide a strong base? What is its molecular weight?
+        - Check the chemicals in this Jira issue
+        - We just had a chemical spill. What do we do?
+      actions:
+        - lookup-chemical
+        - check-compatibility
+        - chemical-properties
+        - read-jira-issue
+        - add-safety-comment
+        - create-incident-tasks
+  # Exposes the chemistry actions as MCP tools, so customers' own Rovo Studio
+  # agents (and, if a site admin allows it, external MCP clients) can use them.
+  rovo:mcp:
+    - key: chemical-risk-mcp
+      # Max 30 characters.
+      name: JESTOX Chemical Tools
+      tools:
+        - lookup-chemical
+        - check-compatibility
+        - chemical-properties
+  action:
+    - key: lookup-chemical
+      name: Look up chemical safety data
+      function: lookupChemical
+      actionVerb: GET
+      # Max 255 characters.
+      description: >
+        Get PubChem safety data for ONE chemical: GHS hazards and H-codes,
+        exposure limits, PPE, first aid, storage, incompatibilities, spills,
+        disposal and a source link. Use for any chemical hazard or handling
+        question; call once per chemical.
+      inputs:
+        chemical:
+          title: Chemical
+          type: string
+          required: true
+          description: >
+            The name, synonym or CAS number of a single chemical, as the user
+            wrote it, e.g. "sodium hypochlorite", "toluene" or "67-64-1".
+    - key: check-compatibility
+      name: Check chemical compatibility
+      function: checkCompat
+      actionVerb: GET
+      # Max 255 characters.
+      description: >
+        Check whether 2 to 6 chemicals can be mixed or stored together. Returns
+        a verdict per pair (do not mix / segregate / no rule matched) with the
+        chemistry and source. Use for any mixing, storage or
+        "is it safe together" question.
+      inputs:
+        chemicals:
+          title: Chemicals
+          type: string
+          required: true
+          description: >
+            Comma-separated list of 2 to 6 chemical names or CAS numbers, as
+            the user wrote them, e.g. "sodium hypochlorite, hydrochloric acid".
+    - key: chemical-properties
+      name: Get chemical properties
+      function: chemProps
+      actionVerb: GET
+      # Max 255 characters.
+      description: >
+        Get PubChem identity and properties for ONE chemical: names, CAS,
+        formula, molecular weight, acid/base/oxidizer class, state, colour, pH,
+        pKa, solubility, melting/boiling point, density, water reaction, uses.
+      inputs:
+        chemical:
+          title: Chemical
+          type: string
+          required: true
+          description: >
+            The name, synonym or CAS number of a single chemical, as the user
+            wrote it, e.g. "sodium hydroxide", "phenolphthalein" or "64-19-7".
+    - key: read-jira-issue
+      name: Read Jira issue
+      function: readIssue
+      actionVerb: GET
+      # Max 255 characters.
+      description: >
+        Read a Jira issue's summary, description and recent comments so you can
+        find the chemicals it mentions and safety-check them. Uses the issue
+        being viewed if no key is given.
+      inputs:
+        issueKey:
+          title: Issue key
+          type: string
+          required: false
+          description: >
+            The Jira issue key, e.g. "LAB-12". Leave empty to use the issue the
+            user is currently viewing.
+    - key: add-safety-comment
+      name: Post safety check to issue
+      function: addComment
+      actionVerb: CREATE
+      # Max 255 characters.
+      description: >
+        Post a chemical safety check as a comment on a Jira issue. Only use
+        after showing the user the check and the user agrees to post it.
+      inputs:
+        issueKey:
+          title: Issue key
+          type: string
+          required: false
+          description: >
+            The Jira issue key, e.g. "LAB-12". Leave empty to use the issue the
+            user is currently viewing.
+        comment:
+          title: Comment
+          type: string
+          required: true
+          description: >
+            Plain-text safety summary: overall verdict, each pair's verdict and
+            reason, key storage notes and source URLs. Use "- " for bullets.
+    - key: create-incident-tasks
+      name: Create incident follow-up tasks
+      function: incidentTasks
+      actionVerb: CREATE
+      # Max 255 characters.
+      description: >
+        After a chemical incident, create follow-up Jira tasks: clean-up,
+        report to EHS, medical follow-up if someone was exposed, root-cause
+        review, disposal and restock. Only use after the user agrees.
+      inputs:
+        projectKey:
+          title: Project key
+          type: string
+          required: false
+          description: >
+            Jira project key for the tasks, e.g. "LAB". Leave empty to use the
+            project the user is currently in.
+        chemical:
+          title: Chemical
+          type: string
+          required: true
+          description: The chemical involved, e.g. "acetone".
+        location:
+          title: Location
+          type: string
+          required: false
+          description: Where it happened, e.g. "Lab 3", as the user said it.
+        incidentSummary:
+          title: Incident summary
+          type: string
+          required: true
+          description: One or two sentences, only facts the user gave (what, how much, when, who).
+        personExposed:
+          title: Person exposed
+          type: boolean
+          required: true
+          description: True if anyone was splashed, inhaled it, swallowed it or was hurt.
+        ppe:
+          title: PPE
+          type: string
+          required: false
+          description: PPE for clean-up from the lookup-chemical result, as "- " bullet lines.
+        cleanupSteps:
+          title: Clean-up steps
+          type: string
+          required: false
+          description: Spill response / clean-up from the lookup-chemical result, as "- " bullet lines.
+        firstAid:
+          title: First aid
+          type: string
+          required: false
+          description: First aid from the lookup-chemical result, as "- " bullet lines.
+        disposal:
+          title: Disposal
+          type: string
+          required: false
+          description: Disposal guidance from the lookup-chemical result, as "- " bullet lines.
+  function:
+    - key: incidentTasks
+      handler: index.createIncidentTasks
+    - key: readIssue
+      handler: index.readJiraIssue
+    - key: addComment
+      handler: index.addSafetyComment
+    - key: chemProps
+      handler: index.chemicalProperties
+    - key: lookupChemical
+      handler: index.lookupChemical
+    - key: checkCompat
+      handler: index.checkChemicalCompatibility
+resources:
+  - key: agent-prompts
+    path: prompts
+permissions:
+  scopes:
+    - read:jira-work # read the issue the user asks about (as that user)
+    - write:jira-work # post the safety-check comment (only after the user confirms)
+  external:
+    fetch:
+      backend:
+        - address: pubchem.ncbi.nlm.nih.gov
+app:
+  runtime:
+    name: nodejs24.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/fb9d7cb4-54cf-4ed7-b8b5-e3f3e62cdbff

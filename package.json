@@ -1,0 +1,11 @@
+{
+  "name": "jestox",
+  "version": "2.1.0",
+  "description": "JESTOX: a Rovo agent for Jira that brings sourced chemical safety into everyday work (Atlassian Forge)",
+  "main": "index.js",
+  "private": true,
+  "license": "MIT",
+  "dependencies": {
+    "@forge/api": "^8.5.0"
+  }
+}
